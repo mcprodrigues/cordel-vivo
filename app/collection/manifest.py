@@ -11,12 +11,11 @@ This module is pure: it parses manifest text and decides, it never reads files.
 import csv
 import io
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
-
-from app.errors import UnresolvedPendingError
 
 MANIFEST_COLUMNS = (
     "id",
@@ -30,12 +29,21 @@ MANIFEST_COLUMNS = (
     "engraver",
     "engraver_source",
     "booklet_license",
+    "booklet_license_source",
     "cover_license",
+    "cover_license_source",
 )
 
-# TODO(P-1): license vocabulary, mapping each license code to whether it allows storing
-# and indexing the image. Until it is defined, any confirmed license fails loudly.
-LICENSE_VOCABULARY: Mapping[str, bool] | None = None
+# License vocabulary (P-1, resolved in #21): whether each license allows downloading,
+# storing and indexing the image. Conservative: in doubt, an item gets metadata_only.
+# Kept equal to the license table filled by db/migrations/V003 (checked by tests).
+LICENSE_VOCABULARY: Mapping[str, bool] = MappingProxyType(
+    {
+        "public_domain": True,
+        "written_authorization": True,
+        "metadata_only": False,
+    }
+)
 
 LicenseCode = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+$")]
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -71,16 +79,22 @@ class ManifestItem(BaseModel):
     engraver: NonBlank | None = None
     engraver_source: NonBlank | None = None
     booklet_license: LicenseCode | None = None
+    booklet_license_source: NonBlank | None = None
     cover_license: LicenseCode | None = None
+    cover_license_source: NonBlank | None = None
 
     @model_validator(mode="after")
-    def _people_have_sources(self) -> "ManifestItem":
+    def _claims_have_sources(self) -> "ManifestItem":
         if self.declared_authorship and not self.declared_authorship_source:
             raise ValueError("declared_authorship needs declared_authorship_source")
         if self.attributed_authorship and not self.attributed_authorship_source:
             raise ValueError("attributed_authorship needs attributed_authorship_source")
         if self.engraver and not self.engraver_source:
             raise ValueError("engraver needs engraver_source")
+        if self.booklet_license and not self.booklet_license_source:
+            raise ValueError("booklet_license needs booklet_license_source")
+        if self.cover_license and not self.cover_license_source:
+            raise ValueError("cover_license needs cover_license_source")
         return self
 
     def license_of(self, part: ImagePart) -> str | None:
@@ -121,7 +135,7 @@ def parse_manifest(text: str) -> Manifest:
 def may_store_image(
     item: ManifestItem,
     part: ImagePart,
-    vocabulary: Mapping[str, bool] | None = LICENSE_VOCABULARY,
+    vocabulary: Mapping[str, bool] = LICENSE_VOCABULARY,
 ) -> bool:
     """Whether the image of this part of the item may be downloaded, stored or indexed.
 
@@ -130,8 +144,6 @@ def may_store_image(
     code = item.license_of(part)
     if code is None:
         return False
-    if vocabulary is None:
-        raise UnresolvedPendingError("P-1", "the license vocabulary is not defined")
     if code not in vocabulary:
         raise UnknownLicenseError(f"license {code!r} of item {item.id} is not in the vocabulary")
     return vocabulary[code]

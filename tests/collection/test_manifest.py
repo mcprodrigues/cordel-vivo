@@ -1,7 +1,7 @@
 """Manifest and image license rules (AGENTS.md, "Business rules" and principle 4).
 
-License codes used here ("test_open", "test_closed") are fixtures, not the real vocabulary,
-which is open item P-1.
+Rule tests use fixture codes ("test_open", "test_closed") so that they hold whatever the
+vocabulary says; the real vocabulary (P-1, resolved in #21) has tests of its own below.
 """
 
 import random
@@ -21,7 +21,6 @@ from app.collection.manifest import (
     may_store_image,
     parse_manifest,
 )
-from app.errors import UnresolvedPendingError
 
 HEADER = ",".join(MANIFEST_COLUMNS)
 VOCABULARY = {"test_open": True, "test_closed": False}
@@ -40,7 +39,9 @@ def row(
     engraver: str = "",
     engraver_source: str = "",
     booklet_license: str = "",
+    booklet_license_source: str = "",
     cover_license: str = "",
+    cover_license_source: str = "",
 ) -> str:
     return ",".join(
         [
@@ -55,7 +56,9 @@ def row(
             engraver,
             engraver_source,
             booklet_license,
+            booklet_license_source,
             cover_license,
+            cover_license_source,
         ]
     )
 
@@ -64,8 +67,16 @@ def manifest_text(*rows: str) -> str:
     return "\n".join([HEADER, *rows]) + "\n"
 
 
-def item(**licenses: str | None) -> ManifestItem:
-    return ManifestItem(id=uuid4(), origin="FCRB", **licenses)
+def item(booklet_license: str | None = None, cover_license: str | None = None) -> ManifestItem:
+    """An item with the given licenses, each recorded with a test source."""
+    return ManifestItem(
+        id=uuid4(),
+        origin="FCRB",
+        booklet_license=booklet_license,
+        booklet_license_source="test source" if booklet_license else None,
+        cover_license=cover_license,
+        cover_license_source="test source" if cover_license else None,
+    )
 
 
 def test_item_in_manifest_is_found() -> None:
@@ -107,10 +118,10 @@ def test_cover_may_be_allowed_when_booklet_is_not() -> None:
 
 @pytest.mark.parametrize("part", ["booklet", "cover"])
 def test_unconfirmed_license_never_allows_image(part: ImagePart) -> None:
-    # Holds even before P-1 is resolved, and whatever the vocabulary says.
+    # Holds whatever the vocabulary says.
     entry = item()
 
-    assert may_store_image(entry, part, None) is False
+    assert may_store_image(entry, part) is False
     assert may_store_image(entry, part, {"anything": True}) is False
 
 
@@ -118,16 +129,35 @@ def test_license_that_forbids_images_is_respected() -> None:
     assert may_store_image(item(booklet_license="test_closed"), "booklet", VOCABULARY) is False
 
 
-def test_confirmed_license_fails_loudly_until_vocabulary_is_defined() -> None:
-    with pytest.raises(UnresolvedPendingError) as raised:
-        may_store_image(item(booklet_license="test_open"), "booklet")
+@pytest.mark.parametrize("part", ["booklet", "cover"])
+@pytest.mark.parametrize("code", ["public_domain", "written_authorization"])
+def test_public_domain_and_written_authorization_allow_image(code: str, part: ImagePart) -> None:
+    entry = item(**{f"{part}_license": code})
 
-    assert raised.value.item == "P-1"
+    assert may_store_image(entry, part) is True
 
 
-def test_license_vocabulary_is_still_pending() -> None:
-    # When P-1 is resolved, this test is replaced by tests of the real vocabulary.
-    assert LICENSE_VOCABULARY is None
+@pytest.mark.parametrize("part", ["booklet", "cover"])
+def test_metadata_only_never_allows_image(part: ImagePart) -> None:
+    assert may_store_image(item(**{f"{part}_license": "metadata_only"}), part) is False
+
+
+def test_license_vocabulary_is_the_approved_one() -> None:
+    assert dict(LICENSE_VOCABULARY) == {
+        "public_domain": True,
+        "written_authorization": True,
+        "metadata_only": False,
+    }
+
+
+def test_license_vocabulary_cannot_be_changed_at_runtime() -> None:
+    with pytest.raises(TypeError):
+        LICENSE_VOCABULARY["metadata_only"] = True  # type: ignore[index]
+
+
+def test_unknown_license_is_rejected_by_the_real_vocabulary() -> None:
+    with pytest.raises(UnknownLicenseError):
+        may_store_image(item(booklet_license="cc_by"), "booklet")
 
 
 def test_unknown_license_is_rejected() -> None:
@@ -142,10 +172,19 @@ def test_changing_the_vocabulary_changes_the_decision() -> None:
     assert may_store_image(entry, "booklet", {"test_open": False}) is False
 
 
-@pytest.mark.parametrize("person", ["declared_authorship", "attributed_authorship", "engraver"])
-def test_people_are_recorded_only_with_their_source(person: str) -> None:
-    with pytest.raises(ValidationError, match=f"{person} needs {person}_source"):
-        ManifestItem(id=uuid4(), origin="FCRB", **{person: "Leandro"})
+@pytest.mark.parametrize(
+    ("claim", "value"),
+    [
+        ("declared_authorship", "Leandro"),
+        ("attributed_authorship", "Leandro"),
+        ("engraver", "Leandro"),
+        ("booklet_license", "public_domain"),
+        ("cover_license", "public_domain"),
+    ],
+)
+def test_claims_are_recorded_only_with_their_source(claim: str, value: str) -> None:
+    with pytest.raises(ValidationError, match=f"{claim} needs {claim}_source"):
+        ManifestItem.model_validate({"id": str(uuid4()), "origin": "FCRB", claim: value})
 
 
 def test_declared_and_attributed_authorship_are_kept_apart() -> None:
@@ -212,7 +251,10 @@ def test_repeated_item_id_is_rejected() -> None:
 
 
 def test_manifest_does_not_depend_on_row_order() -> None:
-    rows = [row(uuid4(), booklet_license="test_open") for _ in range(20)]
+    rows = [
+        row(uuid4(), booklet_license="test_open", booklet_license_source="test source")
+        for _ in range(20)
+    ]
     shuffled = rows.copy()
     random.Random(7).shuffle(shuffled)
 
