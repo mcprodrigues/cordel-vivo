@@ -24,3 +24,47 @@ jobs:
       - run: uv run --frozen ruff format --check
       - run: uv run --frozen mypy
       - run: uv run --frozen pytest
+
+  db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PGUSER: cordel
+      PGPASSWORD: cordel-ci
+      PGDATABASE: cordel
+    services:
+      postgres:
+        # Same image and digest as infra/docker-compose.yml.
+        image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f
+        env:
+          POSTGRES_USER: cordel
+          POSTGRES_PASSWORD: cordel-ci
+          POSTGRES_DB: cordel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cordel -d cordel"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.7"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Apply and validate migrations with Flyway
+        run: |
+          for command in migrate validate; do
+            docker run --rm --network host \
+              -v "$PWD/db/migrations:/flyway/sql:ro" \
+              -e FLYWAY_URL="jdbc:postgresql://127.0.0.1:5432/$PGDATABASE" \
+              -e FLYWAY_USER="$PGUSER" -e FLYWAY_PASSWORD="$PGPASSWORD" \
+              -e FLYWAY_LOCATIONS=filesystem:/flyway/sql \
+              -e REDGATE_DISABLE_TELEMETRY=true \
+              flyway/flyway:13.13.0-alpine@sha256:ebea270d71794bf0fd2bd4d0282dd12be324d0efc0a55a81c0f654180591c124 \
+              "$command"
+          done
+      - name: Database tests (network allowed only to localhost)
+        run: uv run --frozen pytest -m db --force-enable-socket --allow-hosts=127.0.0.1
+        env:
+          CORDEL_DB_URL: postgresql://cordel:cordel-ci@127.0.0.1:5432/cordel
