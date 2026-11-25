@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Ferramentas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.import_linter_cache/
+
+# Configuração local e segredos
+.env
+.env.*
+!.env.example
+
+# Arquivos do acervo (imagens e PDFs nunca entram no git)
+collection/files/
+
+# Editores e sistema
+.idea/
+.vscode/
+.DS_Store
