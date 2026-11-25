@@ -22,7 +22,7 @@ Cordel Vivo is a searchable archive of Brazilian cordel booklets for students, t
 - **License before data.** No item enters the collection without a row in the manifest (`collection/manifest.csv`). An image without a confirmed license is never downloaded or indexed: only its metadata and a link to the source are stored.
 - **The cover has its own license.** The woodcut (xilogravura) has its own author, the engraver, and its public domain term is computed per piece, separately from the booklet.
 - **Public domain** (Brazilian Law 9.610/98, art. 41): 70 years counted from January 1st of the year after the author's death.
-- **Declared and attributed authorship** are both stored, each with its source. Authorship is never "corrected" without a reference.
+- **Declared and attributed authorship** are both stored, each with its source. Authorship is never "corrected" without a reference. The engraver is likewise recorded only with its source.
 - **Stylometry only produces hypotheses**, always shown with a confidence level, never as a verdict.
 - **Contemporary works** enter only with the poet's written authorization.
 - **The manifest is edited by hand** and reviewed like a golden set. Each row has a stable UUID; an empty cell means unknown or not confirmed. Its columns mirror the collection item table, and a test keeps both in sync.

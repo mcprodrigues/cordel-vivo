@@ -1,4 +1,4 @@
-"""Rules enforced by the V001 schema, checked against a real Postgres.
+"""Rules enforced by the database schema, checked against a real Postgres.
 
 Run with the database up and migrated (see AGENTS.md):
     CORDEL_DB_URL=postgresql://user:password@127.0.0.1:55450/cordel \
@@ -14,6 +14,8 @@ from collections.abc import Iterator
 import psycopg
 import pytest
 from psycopg import errors
+
+from app.collection.manifest import MANIFEST_COLUMNS
 
 pytestmark = pytest.mark.db
 
@@ -155,17 +157,28 @@ def test_unknown_license_is_rejected(db: psycopg.Connection[tuple[object, ...]])
     )
 
 
-@pytest.mark.parametrize("kind", ["declared", "attributed"])
-def test_authorship_requires_its_source(
-    db: psycopg.Connection[tuple[object, ...]], kind: str
+@pytest.mark.parametrize("person", ["declared_authorship", "attributed_authorship", "engraver"])
+def test_people_are_recorded_only_with_their_source(
+    db: psycopg.Connection[tuple[object, ...]], person: str
 ) -> None:
     expect_violation(
         db,
         errors.CheckViolation,
-        f"ck_collection_item_{kind}_authorship_has_source",
-        f"INSERT INTO collection_item (origin, {kind}_authorship) VALUES ('x', %s)",
-        ["Leandro Gomes de Barros"],
+        f"ck_collection_item_{person}_has_source",
+        f"INSERT INTO collection_item (origin, {person}) VALUES ('x', %s)",
+        ["test person"],
     )
+
+
+def test_manifest_columns_exist_in_the_database(
+    db: psycopg.Connection[tuple[object, ...]],
+) -> None:
+    rows = db.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = 'collection_item'"
+    ).fetchall()
+
+    assert set(MANIFEST_COLUMNS) - {str(row[0]) for row in rows} == set()
 
 
 def test_origin_url_must_be_http(db: psycopg.Connection[tuple[object, ...]]) -> None:

@@ -32,10 +32,13 @@ def row(
     *,
     origin: str = "FCRB",
     origin_url: str = "https://example.org/item",
+    title: str = "",
     declared: str = "",
     declared_source: str = "",
     attributed: str = "",
     attributed_source: str = "",
+    engraver: str = "",
+    engraver_source: str = "",
     booklet_license: str = "",
     cover_license: str = "",
 ) -> str:
@@ -44,10 +47,13 @@ def row(
             str(item_id),
             origin,
             origin_url,
+            title,
             declared,
             declared_source,
             attributed,
             attributed_source,
+            engraver,
+            engraver_source,
             booklet_license,
             cover_license,
         ]
@@ -136,10 +142,10 @@ def test_changing_the_vocabulary_changes_the_decision() -> None:
     assert may_store_image(entry, "booklet", {"test_open": False}) is False
 
 
-@pytest.mark.parametrize("kind", ["declared", "attributed"])
-def test_authorship_requires_its_source(kind: str) -> None:
-    with pytest.raises(ValidationError, match=f"{kind}_authorship needs"):
-        ManifestItem(id=uuid4(), origin="FCRB", **{f"{kind}_authorship": "Leandro"})
+@pytest.mark.parametrize("person", ["declared_authorship", "attributed_authorship", "engraver"])
+def test_people_are_recorded_only_with_their_source(person: str) -> None:
+    with pytest.raises(ValidationError, match=f"{person} needs {person}_source"):
+        ManifestItem(id=uuid4(), origin="FCRB", **{person: "Leandro"})
 
 
 def test_declared_and_attributed_authorship_are_kept_apart() -> None:
@@ -153,6 +159,25 @@ def test_declared_and_attributed_authorship_are_kept_apart() -> None:
     )
 
     assert entry.declared_authorship != entry.attributed_authorship
+
+
+def test_engraver_is_recorded_apart_from_authorship() -> None:
+    item_id = uuid4()
+    text = manifest_text(
+        row(
+            item_id,
+            title="test title",
+            declared="test author",
+            declared_source="printed on the booklet",
+            engraver="test engraver",
+            engraver_source="test source",
+        )
+    )
+    entry = parse_manifest(text).require(item_id)
+
+    assert entry.title == "test title"
+    assert entry.engraver == "test engraver"
+    assert entry.declared_authorship == "test author"
 
 
 @pytest.mark.parametrize(
