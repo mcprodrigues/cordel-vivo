@@ -24,6 +24,10 @@ def load_compose() -> dict[str, Any]:
 
 COMPOSE = load_compose()
 SERVICES: dict[str, dict[str, Any]] = COMPOSE["services"]
+# One-shot tools (under the "tools" profile) run and exit, so they have no healthcheck.
+LONG_RUNNING = sorted(
+    name for name, svc in SERVICES.items() if "tools" not in svc.get("profiles", [])
+)
 
 
 def test_compose_project_is_named() -> None:
@@ -37,19 +41,23 @@ def test_every_image_is_pinned_by_tag_and_digest(service: str) -> None:
     assert ":latest@" not in image
 
 
-@pytest.mark.parametrize("service", sorted(SERVICES))
-def test_every_service_has_healthcheck(service: str) -> None:
+@pytest.mark.parametrize("service", LONG_RUNNING)
+def test_every_long_running_service_has_healthcheck(service: str) -> None:
     healthcheck = SERVICES[service].get("healthcheck", {})
     assert healthcheck.get("test")
     assert not healthcheck.get("disable", False)
 
 
 @pytest.mark.parametrize("service", sorted(SERVICES))
-def test_volumes_are_named(service: str) -> None:
+def test_data_volumes_are_named_and_bind_mounts_are_read_only(service: str) -> None:
     declared = set(COMPOSE.get("volumes") or {})
     for mount in SERVICES[service].get("volumes", []):
-        source = mount.split(":")[0]
-        assert source in declared, f"{service} mounts {source!r}, which is not a named volume"
+        source, _, rest = mount.partition(":")
+        if source.startswith((".", "/")):
+            # Bind mounts only bring repository files in (e.g. migrations), never data.
+            assert rest.endswith(":ro"), f"{service} bind-mounts {source!r} read-write"
+        else:
+            assert source in declared, f"{service} mounts {source!r}, which is not declared"
 
 
 @pytest.mark.parametrize("service", sorted(SERVICES))

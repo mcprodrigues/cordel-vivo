@@ -45,6 +45,26 @@ services:
       retries: 20
       start_period: 15s
 
+  # One-shot tool, not started by `up`:
+  #   docker compose -f infra/docker-compose.yml --env-file .env run --rm migrations migrate
+  # Also accepts info, validate and repair. Flyway's checksum makes `validate` fail if an
+  # applied migration was edited (AGENTS.md, principle 11).
+  migrations:
+    image: flyway/flyway:13.13.0-alpine@sha256:ebea270d71794bf0fd2bd4d0282dd12be324d0efc0a55a81c0f654180591c124
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${CORDEL_POSTGRES_DB:?set CORDEL_POSTGRES_DB in .env}
+      FLYWAY_USER: ${CORDEL_POSTGRES_USER:?set CORDEL_POSTGRES_USER in .env}
+      FLYWAY_PASSWORD: ${CORDEL_POSTGRES_PASSWORD:?set CORDEL_POSTGRES_PASSWORD in .env}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: "10"
+      REDGATE_DISABLE_TELEMETRY: "true"
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+
 volumes:
   cordel_pg_data:
   cordel_s3_data:
