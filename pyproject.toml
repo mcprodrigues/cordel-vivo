@@ -5,11 +5,15 @@ description = "Searchable archive of Brazilian cordel booklets."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "fastapi==0.165.0",
     "pydantic==2.14.4",
+    "pydantic-settings==2.16.3",
+    "uvicorn==0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx==0.28.1",
     "mypy==2.4.1",
     "psycopg[binary]==3.3.9",
     "pytest==9.2.0",
@@ -45,6 +49,8 @@ addopts = [
     "--strict-markers",
     "--ignore-glob=*_live.py",
     "--disable-socket",
+    # Unix sockets are local IPC (the event loop's socketpair), not network access.
+    "--allow-unix-socket",
     "-m", "not db",
 ]
 python_files = ["test_*.py"]

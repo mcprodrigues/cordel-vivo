@@ -68,6 +68,7 @@ uv sync                                                       # install
 uv run ruff check --fix && uv run ruff format                 # lint and format
 uv run mypy                                                   # types
 uv run pytest                                                 # tests, no network
+set -a && . ./.env && set +a && uv run python -m app           # API on CORDEL_API_PORT
 docker compose -f infra/docker-compose.yml --env-file .env up -d
 docker compose -f infra/docker-compose.yml --env-file .env run --rm migrations migrate
 # tests against local Postgres (CORDEL_DB_URL from .env)
