@@ -23,5 +23,4 @@ jobs:
       - run: uv run --frozen ruff check
       - run: uv run --frozen ruff format --check
       - run: uv run --frozen mypy
-      - run: uv run --frozen lint-imports
       - run: uv run --frozen pytest

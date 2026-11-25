@@ -55,18 +55,18 @@ While an item is open, code uses a `TODO(P-N)` that fails with a clear error. Ne
 
 ## Stack and commands
 
-- Python 3.12 in a `uv` workspace; versions pinned in `pyproject.toml` and `uv.lock`.
+- Python 3.13, one application package (`app/`) managed by `uv`; versions pinned in `pyproject.toml` and `uv.lock`.
 - FastAPI + Uvicorn, Pydantic v2, `pydantic-settings`.
 - Postgres 16 with `pgvector`, `unaccent` and Portuguese full-text search. Text, vectors, graph and queue all live in Postgres. Migrations are applied by Flyway (Community).
 - S3-compatible object storage (SeaweedFS locally), accessed only through the S3 protocol.
 - OpenCV and PDFium (`pypdfium2`) for reading.
-- ruff (lint and format), mypy (strict), import-linter (dependency rules), pytest.
+- ruff (lint and format), mypy (strict), pytest (including the layer rules).
 - Docker Compose in `infra/`; GitHub Actions for CI.
 
 ```bash
 uv sync                                                       # install
 uv run ruff check --fix && uv run ruff format                 # lint and format
-uv run mypy && uv run lint-imports                            # types and dependency rules
+uv run mypy                                                   # types
 uv run pytest                                                 # tests, no network
 docker compose -f infra/docker-compose.yml --env-file .env up -d
 docker compose -f infra/docker-compose.yml run --rm migrations migrate
@@ -87,12 +87,21 @@ uv run pytest -m db                                           # tests against lo
 ## Repository layout
 
 ```
-packages/contracts/   shared Pydantic models
-packages/poetics/     scansion, rhyme and form: pure library
-services/api/         FastAPI: v1 contract, auth, enqueueing
-services/reading/     worker: preprocessing, segmentation, OCR
-services/enrichment/  worker: LLM extraction with citations
-services/indexing/    worker: embeddings and indexes
+app/main.py           create_app: the FastAPI application factory
+app/settings.py       the only place configuration is read
+app/dependencies.py   composition root: the only place concrete classes are built
+app/security.py       authentication
+app/api.py            mounts the routers
+app/routers/          HTTP layer: validate input, call a service, serialize
+app/services/         business logic; depends only on provider interfaces
+app/providers/        Postgres, S3, OCR and LLM access
+app/schemas/          Pydantic request and response models
+app/errors.py         application errors
+app/collection/       manifest and image license rule: pure, no I/O
+app/poetics/          scansion, rhyme and form: pure, standard library only
+app/workers/          one entry point per stage (reading, enrichment, indexing)
+app/scripts/          offline jobs, run by hand
+tests/                mirrors app/ (tests/routers/, tests/collection/...)
 db/migrations/        V###__description.sql (Flyway)
 evaluation/           golden sets and harness
 collection/           manifest.csv (files live in collection/files/, outside git)
@@ -100,10 +109,16 @@ infra/                docker-compose
 docs/                 plan, ADRs, API contract
 ```
 
-Dependency rules (enforced by `lint-imports`):
-- `contracts` depends only on pydantic;
-- `poetics` depends only on the standard library, does no I/O and does not import `contracts`;
-- a service may depend on `packages/*`, never on another service.
+There is no generic domain layer: a pure rule lives in a folder named after its subject, like `app/collection/` and `app/poetics/`.
+
+Layer rules (enforced by `tests/test_dependency_rules.py`):
+- `poetics` imports only the standard library and does no I/O;
+- `collection` imports only the standard library, pydantic and `app.errors`, and does no I/O;
+- routers never import providers or workers; they call services;
+- services depend only on `app.providers.interfaces`, never on a concrete provider;
+- workers never import routers;
+- collaborators are passed through constructors and wired only in `app/dependencies.py`;
+- imports inside `app` are absolute.
 
 ## Git workflow
 
@@ -111,7 +126,7 @@ Dependency rules (enforced by `lint-imports`):
 - Commits in English, imperative mood: `type(#N - module): description` (e.g. `feat(#3 - api): add authentication to all routes`). Types: `feat`, `fix`, `refact`, `chore`, `docs`, `db`, `test`. Without an issue, use `#0`. No attribution trailers.
 - One PR per issue, with "What was done?", "How to test?" and `Issue: #N`. Clara reviews and merges.
 - CI (`.github/workflows/ci.yml`) runs the same checks as the hooks on every PR and on pushes to `main` and `develop`; a PR merges only with CI green.
-- Hooks live in `.githooks/` (`git config core.hooksPath .githooks`): `commit-msg` checks the format, `pre-commit` runs ruff, `pre-push` runs mypy, lint-imports and pytest.
+- Hooks live in `.githooks/` (`git config core.hooksPath .githooks`): `commit-msg` checks the format, `pre-commit` runs ruff, `pre-push` runs mypy and pytest.
 - A change to the public contract updates `docs/api-contract-v1.md` in the same PR.
 - Every architecture decision gets an ADR in `docs/adr/` (Context, Decision, Consequences, Alternatives).
 - A new rule or a resolved open item is added to this file in the same PR.
@@ -120,9 +135,9 @@ Dependency rules (enforced by `lint-imports`):
 
 1. **The LLM decides, code executes.** Every LLM output is validated with Pydantic; side effects are performed by deterministic code.
 2. **Mandatory citation.** Every LLM extraction points to line ids of the transcription; code checks that the passage exists and discards whatever does not.
-3. **Poetics never uses an LLM.** `packages/poetics` is pure and fully testable.
+3. **Poetics never uses an LLM.** `app/poetics` is pure and fully testable.
 4. **License before data.** A test enforces the manifest rule and the image license rule.
-5. **Autonomous services.** They integrate only over HTTP or through the queue.
+5. **Separate processes.** The API and each worker run as their own process from the same codebase, and they integrate only over HTTP or through the queue, never by calling each other's code.
 6. **Idempotent jobs.** Each ingestion stage is a re-runnable job; the file's SHA-256 is the idempotency key.
 7. **Explicit, configurable timeout** on every external call (LLM, storage, HTTP).
 8. **Configuration only through environment variables.** Every new variable goes into `.env.example` in the same PR.

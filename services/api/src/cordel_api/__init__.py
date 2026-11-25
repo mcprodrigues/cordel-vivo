@@ -1,1 +1,0 @@
-"""Cordel Vivo HTTP API."""
