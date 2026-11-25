@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Types, dependency rules and tests before every push.
+set -eu
+uv run --frozen mypy
+uv run --frozen lint-imports
+uv run --frozen pytest -q

@@ -1,0 +1,15 @@
+[project]
+name = "cordel-contracts"
+version = "0.1.0"
+description = "Shared Pydantic models for Cordel Vivo services."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pydantic==2.14.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "cordel_contracts"
