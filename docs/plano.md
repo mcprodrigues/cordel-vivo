@@ -174,11 +174,11 @@ O maior risco não é técnico: é o direito de uso das imagens. Resolva isso na
 
 **Decisões para tomar (e registrar em ADR):**
 
-- [ ] Postgres + pgvector ou Weaviate? Recomendo Postgres: mostra uma stack diferente da do Astros e junta texto, vetor e grafo num lugar só.
+- [x] Postgres + pgvector ou Weaviate? Recomendo Postgres: mostra uma stack diferente da do Astros e junta texto, vetor e grafo num lugar só. **Decidido: Postgres + pgvector ([ADR 0001](adr/0001-postgres-pgvector-over-weaviate.md)).**
 - [ ] Motor de OCR principal, decidido por CER no golden set.
-- [ ] Fila: tabela no Postgres com `SKIP LOCKED` ou Redis com RQ.
+- [x] Fila: tabela no Postgres com `SKIP LOCKED` ou Redis com RQ. **Decidido: Postgres com `SKIP LOCKED` ([ADR 0002](adr/0002-postgres-queue-with-skip-locked.md)).**
 - [ ] Front: Next.js (que está no seu README) ou outro.
-- [ ] Nome do repositório e licença do código (MIT ou Apache-2.0); a licença dos dados é outra.
+- [x] Nome do repositório e licença do código (MIT ou Apache-2.0); a licença dos dados é outra. **Decidido: `cordel-vivo`, código Apache-2.0.**
 
 Nenhum código, prompt ou dado da Exitus entra no projeto: os padrões (consenso, adjudicação, harness) são reescritos do zero.
 
