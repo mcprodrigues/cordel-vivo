@@ -110,7 +110,8 @@ Dependency rules (enforced by `lint-imports`):
 - `main` (release) and `develop` (integration). Work happens on `type/N-slug` branches off `develop`, with PRs into `develop`. Only `develop` merges into `main`.
 - Commits in English, imperative mood: `type(#N - module): description` (e.g. `feat(#3 - api): add authentication to all routes`). Types: `feat`, `fix`, `refact`, `chore`, `docs`, `db`, `test`. Without an issue, use `#0`. No attribution trailers.
 - One PR per issue, with "What was done?", "How to test?" and `Issue: #N`. Clara reviews and merges.
-- Hooks live in `.githooks/` (`git config core.hooksPath .githooks`): `commit-msg` checks the format, `pre-commit` runs ruff, `pre-push` runs mypy and pytest.
+- CI (`.github/workflows/ci.yml`) runs the same checks as the hooks on every PR and on pushes to `main` and `develop`; a PR merges only with CI green.
+- Hooks live in `.githooks/` (`git config core.hooksPath .githooks`): `commit-msg` checks the format, `pre-commit` runs ruff, `pre-push` runs mypy, lint-imports and pytest.
 - A change to the public contract updates `docs/api-contract-v1.md` in the same PR.
 - Every architecture decision gets an ADR in `docs/adr/` (Context, Decision, Consequences, Alternatives).
 - A new rule or a resolved open item is added to this file in the same PR.

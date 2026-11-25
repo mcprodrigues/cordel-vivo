@@ -22,6 +22,7 @@ dev = [
     "import-linter==2.17",
     "mypy==2.4.1",
     "pytest==9.2.0",
+    "pytest-socket==0.8.1",
     "ruff==0.17.6",
 ]
 
@@ -47,7 +48,7 @@ warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services"]
-addopts = ["--import-mode=importlib", "--strict-markers", "--ignore-glob=*_live.py"]
+addopts = ["--import-mode=importlib", "--strict-markers", "--ignore-glob=*_live.py", "--disable-socket"]
 python_files = ["test_*.py"]
 
 [tool.importlinter]
