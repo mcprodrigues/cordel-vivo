@@ -44,7 +44,7 @@ O corpus da v1 deve ter só folhetos em domínio público, com a licença e a or
 
 ## Arquitetura
 
-Cada folheto passa por quatro etapas assíncronas, cada uma um job idempotente na fila, e só o que passou pelas validações chega ao índice. Cada serviço tem o seu Dockerfile e o seu `.env.example`, e eles conversam só por HTTP ou pela fila.
+Cada folheto passa por quatro etapas assíncronas, cada uma um job idempotente na fila, e só o que passou pelas validações chega ao índice. A API e cada worker rodam como processos separados a partir do mesmo código e da mesma imagem, e conversam só por HTTP ou pela fila.
 
 &#91;embedded content: arquitetura · API, fila, 4 workers, busca e armazenamento\]
 
