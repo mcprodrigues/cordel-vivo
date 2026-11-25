@@ -22,10 +22,13 @@ MANIFEST_COLUMNS = (
     "id",
     "origin",
     "origin_url",
+    "title",
     "declared_authorship",
     "declared_authorship_source",
     "attributed_authorship",
     "attributed_authorship_source",
+    "engraver",
+    "engraver_source",
     "booklet_license",
     "cover_license",
 )
@@ -60,19 +63,24 @@ class ManifestItem(BaseModel):
     id: UUID
     origin: NonBlank
     origin_url: HttpUrl | None = None
+    title: NonBlank | None = None
     declared_authorship: NonBlank | None = None
     declared_authorship_source: NonBlank | None = None
     attributed_authorship: NonBlank | None = None
     attributed_authorship_source: NonBlank | None = None
+    engraver: NonBlank | None = None
+    engraver_source: NonBlank | None = None
     booklet_license: LicenseCode | None = None
     cover_license: LicenseCode | None = None
 
     @model_validator(mode="after")
-    def _authorship_has_source(self) -> "ManifestItem":
+    def _people_have_sources(self) -> "ManifestItem":
         if self.declared_authorship and not self.declared_authorship_source:
             raise ValueError("declared_authorship needs declared_authorship_source")
         if self.attributed_authorship and not self.attributed_authorship_source:
             raise ValueError("attributed_authorship needs attributed_authorship_source")
+        if self.engraver and not self.engraver_source:
+            raise ValueError("engraver needs engraver_source")
         return self
 
     def license_of(self, part: ImagePart) -> str | None:
