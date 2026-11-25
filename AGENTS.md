@@ -26,11 +26,16 @@ Cordel Vivo is a searchable archive of Brazilian cordel booklets for students, t
 - **Stylometry only produces hypotheses**, always shown with a confidence level, never as a verdict.
 - **Contemporary works** enter only with the poet's written authorization.
 - **The manifest is edited by hand** and reviewed like a golden set. Each row has a stable UUID; an empty cell means unknown or not confirmed. Its columns mirror the collection item table, and a test keeps both in sync.
+- **License vocabulary** (P-1, resolved in #21), the same for the booklet and the cover, conservative by design:
+  - `public_domain` allows the image: the author, or the engraver for the cover, died more than 70 years ago;
+  - `written_authorization` allows the image: written authorization from the poet, the engraver or the holding institution;
+  - `metadata_only` never allows it: protected, not authorized, or in doubt.
+
+  Every license is recorded with its source (the death year and where it came from, the authorization, or the reason). In doubt, use `metadata_only`. A new code needs Clara's approval and a new migration; code and the `license` table are kept equal by tests.
 - **One decision point for images.** Whether an image may be downloaded, stored or indexed is decided only by `app.collection.manifest`; services and workers call it and never reimplement the rule. An empty license never allows an image.
 
 ### Open items
 
-- **P-1** License vocabulary (booklet and cover) and which values allow downloading or indexing the image. Until it is defined, any confirmed license raises `UnresolvedPendingError`, and the database `license` table stays empty.
 - **P-2** Job statuses. Current values are provisional.
 - **P-3** Maximum attempts and backoff for the queue.
 - **P-4** Minimum input DPI.
