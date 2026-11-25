@@ -1,6 +1,5 @@
 #!/usr/bin/env sh
-# Types, dependency rules and tests before every push.
+# Types and tests (the layer rules are tests too) before every push.
 set -eu
 uv run --frozen mypy
-uv run --frozen lint-imports
 uv run --frozen pytest -q
