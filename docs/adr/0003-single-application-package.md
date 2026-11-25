@@ -1,4 +1,4 @@
-# ADR 0005: One application package organized by layer
+# ADR 0003: One application package organized by layer
 
 - **Status:** accepted
 - **Date:** 2026-11-25
