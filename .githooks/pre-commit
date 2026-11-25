@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Lint and format check before every commit.
+set -eu
+uv run --frozen ruff check
+uv run --frozen ruff format --check

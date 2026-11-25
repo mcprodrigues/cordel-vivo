@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+# Rejects commit messages outside the format defined in AGENTS.md:
+#   type(#N - module): description
+set -eu
+
+first_line=$(head -n 1 "$1")
+
+case "$first_line" in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|refact|chore|docs|db|test)\(#[0-9]+ - [a-z0-9][a-z0-9_-]*\): [^ ].*$'
+
+if printf '%s\n' "$first_line" | grep -Eq "$pattern"; then
+  exit 0
+fi
+
+echo "commit-msg: invalid message: '$first_line'" >&2
+echo "commit-msg: expected 'type(#N - module): description'," >&2
+echo "commit-msg: types: feat, fix, refact, chore, docs, db, test (use #0 without an issue)" >&2
+exit 1
