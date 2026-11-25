@@ -69,8 +69,9 @@ uv run ruff check --fix && uv run ruff format                 # lint and format
 uv run mypy                                                   # types
 uv run pytest                                                 # tests, no network
 docker compose -f infra/docker-compose.yml --env-file .env up -d
-docker compose -f infra/docker-compose.yml run --rm migrations migrate
-uv run pytest -m db                                           # tests against local Postgres
+docker compose -f infra/docker-compose.yml --env-file .env run --rm migrations migrate
+# tests against local Postgres (CORDEL_DB_URL from .env)
+uv run pytest -m db --force-enable-socket --allow-hosts=127.0.0.1
 ```
 
 ## Testing and evaluation
@@ -120,12 +121,14 @@ Layer rules (enforced by `tests/test_dependency_rules.py`):
 - collaborators are passed through constructors and wired only in `app/dependencies.py`;
 - imports inside `app` are absolute.
 
+Database objects: every constraint and index is named explicitly with a prefix (`pk_`, `fk_`, `uq_`, `ck_`, `ix_`) followed by the table and the columns or rule. Enforced by tests on the SQL files and on the database catalog.
+
 ## Git workflow
 
 - `main` (release) and `develop` (integration). Work happens on `type/N-slug` branches off `develop`, with PRs into `develop`. Only `develop` merges into `main`.
 - Commits in English, imperative mood: `type(#N - module): description` (e.g. `feat(#3 - api): add authentication to all routes`). Types: `feat`, `fix`, `refact`, `chore`, `docs`, `db`, `test`. Without an issue, use `#0`. No attribution trailers.
 - One PR per issue, with "What was done?", "How to test?" and `Issue: #N`. Clara reviews and merges.
-- CI (`.github/workflows/ci.yml`) runs the same checks as the hooks on every PR and on pushes to `main` and `develop`; a PR merges only with CI green.
+- CI (`.github/workflows/ci.yml`) runs the same checks as the hooks (job `check`) and the migrations plus `pytest -m db` against Postgres (job `db`) on every PR and on pushes to `main` and `develop`; a PR merges only with CI green.
 - Hooks live in `.githooks/` (`git config core.hooksPath .githooks`): `commit-msg` checks the format, `pre-commit` runs ruff, `pre-push` runs mypy and pytest.
 - A change to the public contract updates `docs/api-contract-v1.md` in the same PR.
 - Every architecture decision gets an ADR in `docs/adr/` (Context, Decision, Consequences, Alternatives).
