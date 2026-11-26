@@ -15,7 +15,7 @@ import psycopg
 import pytest
 from psycopg import errors
 
-from app.collection.manifest import MANIFEST_COLUMNS
+from app.collection.manifest import LICENSE_VOCABULARY, MANIFEST_COLUMNS
 
 pytestmark = pytest.mark.db
 
@@ -77,11 +77,12 @@ def test_vector_and_unaccent_extensions_are_installed(
     assert {"vector", "unaccent"} <= {row[0] for row in rows}
 
 
-def test_license_vocabulary_is_empty_until_p1_is_resolved(
+def test_license_table_matches_the_vocabulary_in_code(
     db: psycopg.Connection[tuple[object, ...]],
 ) -> None:
-    row = db.execute("SELECT count(*) FROM license").fetchone()
-    assert row == (0,)
+    rows = db.execute("SELECT code, allows_image FROM license").fetchall()
+
+    assert {str(code): bool(allows) for code, allows in rows} == dict(LICENSE_VOCABULARY)
 
 
 def test_duplicate_sha256_is_rejected(db: psycopg.Connection[tuple[object, ...]]) -> None:
@@ -132,17 +133,18 @@ def test_collection_item_may_have_several_booklets(
 def test_cover_license_is_independent_of_booklet_license(
     db: psycopg.Connection[tuple[object, ...]],
 ) -> None:
-    # License codes here are test fixtures only; the real vocabulary is open item P-1.
-    db.execute(
-        "INSERT INTO license (code, description, allows_image) VALUES "
-        "('test_text', 'test', true), ('test_cover', 'test', false)"
+    item_id = new_item(
+        db,
+        booklet_license="public_domain",
+        booklet_license_source="test source",
+        cover_license="metadata_only",
+        cover_license_source="test source",
     )
-    item_id = new_item(db, booklet_license="test_text", cover_license="test_cover")
     row = db.execute(
         "SELECT booklet_license, cover_license FROM collection_item WHERE id = %s", [item_id]
     ).fetchone()
-    assert row == ("test_text", "test_cover")
-    other = new_item(db, booklet_license="test_text")
+    assert row == ("public_domain", "metadata_only")
+    other = new_item(db, booklet_license="public_domain", booklet_license_source="test source")
     row = db.execute("SELECT cover_license FROM collection_item WHERE id = %s", [other]).fetchone()
     assert row == (None,)
 
@@ -152,21 +154,31 @@ def test_unknown_license_is_rejected(db: psycopg.Connection[tuple[object, ...]])
         db,
         errors.ForeignKeyViolation,
         "fk_collection_item_cover_license",
-        "INSERT INTO collection_item (origin, cover_license) VALUES ('x', %s)",
+        "INSERT INTO collection_item (origin, cover_license, cover_license_source) "
+        "VALUES ('x', %s, 'test source')",
         ["not_a_license"],
     )
 
 
-@pytest.mark.parametrize("person", ["declared_authorship", "attributed_authorship", "engraver"])
-def test_people_are_recorded_only_with_their_source(
-    db: psycopg.Connection[tuple[object, ...]], person: str
+@pytest.mark.parametrize(
+    ("claim", "value"),
+    [
+        ("declared_authorship", "test person"),
+        ("attributed_authorship", "test person"),
+        ("engraver", "test person"),
+        ("booklet_license", "public_domain"),
+        ("cover_license", "public_domain"),
+    ],
+)
+def test_claims_are_recorded_only_with_their_source(
+    db: psycopg.Connection[tuple[object, ...]], claim: str, value: str
 ) -> None:
     expect_violation(
         db,
         errors.CheckViolation,
-        f"ck_collection_item_{person}_has_source",
-        f"INSERT INTO collection_item (origin, {person}) VALUES ('x', %s)",
-        ["test person"],
+        f"ck_collection_item_{claim}_has_source",
+        f"INSERT INTO collection_item (origin, {claim}) VALUES ('x', %s)",
+        [value],
     )
 
 
