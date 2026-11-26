@@ -1,0 +1,70 @@
+# Local environment for Cordel Vivo: Postgres 16 + pgvector and S3-compatible storage.
+#
+#   docker compose -f infra/docker-compose.yml --env-file .env up -d
+#
+# Every image is pinned by tag and digest (AGENTS.md, principle 12). Host ports and
+# credentials come only from the environment; see .env.example. Ports are bound to
+# 127.0.0.1 so nothing is exposed outside this machine.
+
+name: cordel-vivo
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:484e838076e04939d27d3e176e91c86eea96236126023be8d3059761122e579f
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CORDEL_POSTGRES_DB:?set CORDEL_POSTGRES_DB in .env}
+      POSTGRES_USER: ${CORDEL_POSTGRES_USER:?set CORDEL_POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${CORDEL_POSTGRES_PASSWORD:?set CORDEL_POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${CORDEL_POSTGRES_PORT:?set CORDEL_POSTGRES_PORT in .env}:5432"
+    volumes:
+      - cordel_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  s3:
+    image: chrislusf/seaweedfs:4.55@sha256:7ca46aeae2f223b37e5d91593c17ab37738eec6df6ab69b48a0487f7643342b9
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-ip.bind=0.0.0.0"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${CORDEL_S3_ACCESS_KEY:?set CORDEL_S3_ACCESS_KEY in .env}
+      AWS_SECRET_ACCESS_KEY: ${CORDEL_S3_SECRET_KEY:?set CORDEL_S3_SECRET_KEY in .env}
+    ports:
+      - "127.0.0.1:${CORDEL_S3_PORT:?set CORDEL_S3_PORT in .env}:8333"
+    volumes:
+      - cordel_s3_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  # One-shot tool, not started by `up`:
+  #   docker compose -f infra/docker-compose.yml --env-file .env run --rm migrations migrate
+  # Also accepts info, validate and repair. Flyway's checksum makes `validate` fail if an
+  # applied migration was edited (AGENTS.md, principle 11).
+  migrations:
+    image: flyway/flyway:13.13.0-alpine@sha256:ebea270d71794bf0fd2bd4d0282dd12be324d0efc0a55a81c0f654180591c124
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${CORDEL_POSTGRES_DB:?set CORDEL_POSTGRES_DB in .env}
+      FLYWAY_USER: ${CORDEL_POSTGRES_USER:?set CORDEL_POSTGRES_USER in .env}
+      FLYWAY_PASSWORD: ${CORDEL_POSTGRES_PASSWORD:?set CORDEL_POSTGRES_PASSWORD in .env}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: "10"
+      REDGATE_DISABLE_TELEMETRY: "true"
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+
+volumes:
+  cordel_pg_data:
+  cordel_s3_data:

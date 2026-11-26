@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Types and tests (the layer rules are tests too) before every push.
+set -eu
+uv run --frozen mypy
+uv run --frozen pytest -q
